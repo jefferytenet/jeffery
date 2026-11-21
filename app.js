@@ -8,6 +8,7 @@ const input = document.getElementById("todo-input");
 const list = document.getElementById("todo-list");
 const emptyState = document.getElementById("empty-state");
 const remainingCount = document.getElementById("remaining-count");
+const clearCompletedButton = document.getElementById("clear-completed");
 const themeToggle = document.getElementById("theme-toggle");
 const filterButtons = document.querySelectorAll(".filter-button");
 
@@ -122,7 +123,10 @@ function render() {
     button.setAttribute("aria-pressed", String(isActive));
   });
 
-  remainingCount.textContent = `未完成:${todos.filter((todo) => !todo.completed).length} 項`;
+  const remainingTodos = todos.filter((todo) => !todo.completed).length;
+  const completedTodos = todos.length - remainingTodos;
+  remainingCount.textContent = `未完成:${remainingTodos} 項`;
+  clearCompletedButton.hidden = completedTodos === 0;
 }
 
 function createId() {
@@ -176,6 +180,21 @@ themeToggle.addEventListener("click", () => {
   } catch (error) {
     console.error("儲存主題設定失敗，重新整理後可能無法保留選擇。", error);
   }
+});
+
+clearCompletedButton.addEventListener("click", () => {
+  const completedCount = todos.filter((todo) => todo.completed).length;
+  if (completedCount === 0) {
+    return;
+  }
+
+  if (!window.confirm(`確定要清除全部 ${completedCount} 個已完成的待辦事項嗎？此操作無法復原。`)) {
+    return;
+  }
+
+  todos = todos.filter((todo) => !todo.completed);
+  saveTodos();
+  render();
 });
 
 // 在使用者尚未手動選擇主題時，即時跟隨作業系統偏好變化。
