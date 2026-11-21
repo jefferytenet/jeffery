@@ -1,13 +1,42 @@
 // 待辦清單使用原生 JavaScript，並以 localStorage 保存資料。
 const STORAGE_KEY = "todo-list-items";
+const THEME_STORAGE_KEY = "todo-list-theme";
+const THEME_QUERY = window.matchMedia("(prefers-color-scheme: dark)");
 
 const form = document.getElementById("todo-form");
 const input = document.getElementById("todo-input");
 const list = document.getElementById("todo-list");
 const emptyState = document.getElementById("empty-state");
 const remainingCount = document.getElementById("remaining-count");
+const themeToggle = document.getElementById("theme-toggle");
+const filterButtons = document.querySelectorAll(".filter-button");
 
 let todos = loadTodos();
+let activeFilter = "all";
+let themePreference = loadThemePreference();
+
+// 初次載入時依照手動選擇或作業系統偏好設定主題。
+function getCurrentTheme() {
+  return themePreference || (THEME_QUERY.matches ? "dark" : "light");
+}
+
+function applyTheme() {
+  const theme = getCurrentTheme();
+  document.documentElement.dataset.theme = theme;
+  themeToggle.textContent = theme === "dark" ? "☀️ 淺色模式" : "🌙 深色模式";
+  themeToggle.setAttribute("aria-pressed", String(theme === "dark"));
+}
+
+// 讀取使用者手動選擇的主題；沒有有效設定時跟隨系統。
+function loadThemePreference() {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    return saved === "light" || saved === "dark" ? saved : null;
+  } catch (error) {
+    console.warn("讀取主題設定失敗，將跟隨作業系統偏好。", error);
+    return null;
+  }
+}
 
 // 讀取並檢查已保存的資料，避免損壞的內容影響清單。
 function loadTodos() {
@@ -36,11 +65,23 @@ function saveTodos() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
 }
 
-// 根據資料更新清單、空狀態提示與未完成數量。
+// 根據篩選結果更新清單，未完成數量則始終使用完整資料計算。
 function render() {
   list.replaceChildren();
 
-  todos.forEach((todo) => {
+  const visibleTodos = todos.filter((todo) => {
+    if (activeFilter === "active") {
+      return !todo.completed;
+    }
+
+    if (activeFilter === "completed") {
+      return todo.completed;
+    }
+
+    return true;
+  });
+
+  visibleTodos.forEach((todo) => {
     const item = document.createElement("li");
     item.className = todo.completed ? "todo-item completed" : "todo-item";
     item.dataset.id = todo.id;
@@ -65,7 +106,22 @@ function render() {
     list.append(item);
   });
 
-  emptyState.hidden = todos.length > 0;
+  emptyState.hidden = visibleTodos.length > 0;
+  if (visibleTodos.length === 0) {
+    const emptyMessages = {
+      all: "還沒有任何待辦事項,新增一個吧!",
+      active: "目前沒有未完成的待辦事項。",
+      completed: "目前沒有已完成的待辦事項。",
+    };
+    emptyState.textContent = emptyMessages[activeFilter];
+  }
+
+  filterButtons.forEach((button) => {
+    const isActive = button.dataset.filter === activeFilter;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
   remainingCount.textContent = `未完成:${todos.filter((todo) => !todo.completed).length} 項`;
 }
 
@@ -111,4 +167,30 @@ list.addEventListener("click", (event) => {
   render();
 });
 
+themeToggle.addEventListener("click", () => {
+  themePreference = getCurrentTheme() === "dark" ? "light" : "dark";
+  applyTheme();
+
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, themePreference);
+  } catch (error) {
+    console.error("儲存主題設定失敗，重新整理後可能無法保留選擇。", error);
+  }
+});
+
+// 在使用者尚未手動選擇主題時，即時跟隨作業系統偏好變化。
+THEME_QUERY.addEventListener("change", () => {
+  if (!themePreference) {
+    applyTheme();
+  }
+});
+
+filterButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    activeFilter = button.dataset.filter;
+    render();
+  });
+});
+
+applyTheme();
 render();
